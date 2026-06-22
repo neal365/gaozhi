@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, nextTick, computed } from 'vue'
+import { ref, onMounted, watch, nextTick } from 'vue'
 
 const props = defineProps<{
   modelValue: string
@@ -16,10 +16,6 @@ const emit = defineEmits<{
 
 const editorRef = ref<HTMLDivElement | null>(null)
 
-const letterSpacing = computed(() => {
-  return props.lineHeight - props.fontSize
-})
-
 function handleInput(e: Event) {
   const target = e.target as HTMLDivElement
   emit('update:modelValue', target.innerText || '')
@@ -34,127 +30,18 @@ function handleKeydown(e: KeyboardEvent) {
   
   if (e.key === 'Enter') {
     e.preventDefault()
-    insertNewLineWithIndent()
-  }
-  
-  if (e.key === 'Backspace') {
-    handleBackspace(e)
-  }
-}
-
-function insertNewLineWithIndent() {
-  const selection = window.getSelection()
-  if (!selection || !selection.rangeCount) return
-  
-  const editor = editorRef.value
-  if (!editor) return
-  
-  const indent = '　　'
-  const text = editor.innerText || ''
-  const cursorPos = getCursorPosition(editor)
-  const lines = text.split('\n')
-  
-  const currentLineIndex = lines.findIndex((_, i) => {
-    const lineLength = lines.slice(0, i + 1).reduce((acc, l) => acc + l.length + 1, 0)
-    return lineLength > cursorPos
-  })
-  
-  const lineStart = lines.slice(0, currentLineIndex).reduce((acc, l) => acc + l.length + 1, 0)
-  const lineEnd = lineStart + (lines[currentLineIndex]?.length || 0)
-  
-  let newText = ''
-  if (cursorPos <= lineStart) {
-    newText = text.slice(0, lineStart) + '\n' + indent + text.slice(lineStart)
-  } else if (cursorPos >= lineEnd) {
-    newText = text.slice(0, lineEnd) + '\n' + indent + text.slice(lineEnd)
-  } else {
-    newText = text.slice(0, cursorPos) + '\n' + indent + text.slice(cursorPos)
-  }
-  
-  editor.innerText = newText
-  emit('update:modelValue', newText)
-  emit('save')
-  
-  nextTick(() => {
-    const newCursorPos = cursorPos + 1 + indent.length
-    setCursorPosition(editor, newCursorPos)
-  })
-}
-
-function handleBackspace(e: KeyboardEvent) {
-  const editor = editorRef.value
-  if (!editor) return
-  
-  const text = editor.innerText || ''
-  const cursorPos = getCursorPosition(editor)
-  
-  if (cursorPos > 0) {
-    const prevChar = text[cursorPos - 1]
-    if (prevChar === '\n') {
-      e.preventDefault()
-      const lines = text.split('\n')
-      const lineIndex = lines.findIndex((_, i) => {
-        const lineLength = lines.slice(0, i + 1).reduce((acc, l) => acc + l.length + 1, 0)
-        return lineLength > cursorPos
-      })
-      
-      if (lineIndex > 0) {
-        const newText = lines.slice(0, lineIndex - 1).join('\n') + lines[lineIndex - 1] + lines[lineIndex] + lines.slice(lineIndex + 1).join('\n')
-        
-        editor.innerText = newText
-        emit('update:modelValue', newText)
-        emit('save')
-        
-        nextTick(() => {
-          setCursorPosition(editor, cursorPos - 1 - (lines[lineIndex - 1]?.length || 0))
-        })
-      }
+    const selection = window.getSelection()
+    if (selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0)
+      range.deleteContents()
+      range.insertNode(document.createTextNode('\n'))
+      range.collapse(false)
+      selection.removeAllRanges()
+      selection.addRange(range)
     }
+    emit('update:modelValue', editorRef.value?.innerText || '')
+    emit('save')
   }
-}
-
-function getCursorPosition(element: HTMLElement): number {
-  const selection = window.getSelection()
-  if (!selection || !selection.rangeCount) return 0
-  
-  const range = selection.getRangeAt(0)
-  const preCaretRange = range.cloneRange()
-  preCaretRange.selectNodeContents(element)
-  preCaretRange.setEnd(range.endContainer, range.endOffset)
-  
-  const tempDiv = document.createElement('div')
-  tempDiv.appendChild(preCaretRange.cloneContents())
-  return tempDiv.textContent?.length || 0
-}
-
-function setCursorPosition(element: HTMLElement, position: number) {
-  const selection = window.getSelection()
-  if (!selection) return
-  
-  const range = document.createRange()
-  range.selectNodeContents(element)
-  
-  let charCount = 0
-  let node: Node | null = element.firstChild
-  
-  while (node) {
-    if (node.nodeType === Node.TEXT_NODE) {
-      const textNode = node as Text
-      if (charCount + textNode.length >= position) {
-        range.setStart(textNode, position - charCount)
-        range.collapse(true)
-        selection.removeAllRanges()
-        selection.addRange(range)
-        return
-      }
-      charCount += textNode.length
-    }
-    node = node.nextSibling
-  }
-  
-  range.collapse(false)
-  selection.removeAllRanges()
-  selection.addRange(range)
 }
 
 function handleClick(e: MouseEvent) {
@@ -163,14 +50,16 @@ function handleClick(e: MouseEvent) {
   
   editor.focus()
   
-  const selection = window.getSelection()
-  if (!selection) return
-  
-  const range = document.caretRangeFromPoint(e.clientX, e.clientY)
-  if (range) {
-    selection.removeAllRanges()
-    selection.addRange(range)
-  }
+  nextTick(() => {
+    const selection = window.getSelection()
+    if (!selection) return
+    
+    const range = document.caretRangeFromPoint?.(e.clientX, e.clientY)
+    if (range) {
+      selection.removeAllRanges()
+      selection.addRange(range)
+    }
+  })
 }
 
 function focusEditor() {
@@ -183,9 +72,12 @@ watch(() => props.modelValue, (newValue) => {
   if (editorRef.value && editorRef.value.innerText !== newValue) {
     editorRef.value.innerText = newValue
   }
-})
+}, { immediate: true })
 
 onMounted(() => {
+  if (props.modelValue) {
+    editorRef.value!.innerText = props.modelValue
+  }
   focusEditor()
 })
 
@@ -193,34 +85,32 @@ defineExpose({ focusEditor })
 </script>
 
 <template>
-  <div class="editor-wrapper" @click="handleClick">
+  <div class="editor-wrapper">
     <div
       ref="editorRef"
-      class="editor-content editor-cursor"
+      class="editor-content"
       contenteditable="true"
       spellcheck="false"
+      @click="handleClick"
       @input="handleInput"
       @keydown="handleKeydown"
       :style="{
         fontFamily,
         fontSize: `${fontSize}px`,
         lineHeight: `${lineHeight}px`,
-        color: textColor,
-        minHeight: '100%',
-        letterSpacing: `${letterSpacing}px`,
-        textAlign: 'justify',
-        textIndent: '0'
+        color: textColor
       }"
-      :data-placeholder="modelValue ? '' : '点击格子开始书写...'"
+      :data-placeholder="modelValue ? '' : '点击开始书写...'"
     />
   </div>
 </template>
 
 <style scoped>
 .editor-wrapper {
-  padding: 40px;
+  width: 100%;
   min-height: calc(100vh - 120px);
-  cursor: text;
+  padding: 0;
+  margin: 0;
 }
 
 .editor-content {
@@ -228,33 +118,36 @@ defineExpose({ focusEditor })
   min-height: 100%;
   white-space: pre-wrap;
   word-wrap: break-word;
-  cursor: text;
-  text-align: left;
-  padding-left: 0;
-  margin-left: 0;
+  white-space-collapse: preserve;
+  text-wrap: preserve;
+  word-break: break-word;
   font-synthesis: none;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  writing-mode: horizontal-tb;
-  font-family: 'KaiTi', 'STKaiti', 'SimHei', sans-serif;
+  font-family: 'KaiTi', 'STKaiti', 'SimSun', 'SimHei', serif;
+  padding: 0;
+  margin: 0;
 }
 
 .editor-content:empty::before {
   content: attr(data-placeholder);
-  color: #aaa;
+  color: rgba(0, 0, 0, 0.2);
   pointer-events: none;
+  font-style: italic;
 }
 
 .editor-content:focus {
   outline: none;
 }
 
-.editor-cursor {
+/* 光标样式 */
+.editor-content {
   caret-color: currentColor;
-  caret-shape: bar;
 }
 
-.editor-content::selection {
-  background-color: rgba(139, 115, 85, 0.3);
+/* 选中文本样式 */
+.editor-content ::selection,
+.editor-content::-moz-selection {
+  background-color: rgba(180, 140, 100, 0.3);
 }
 </style>
