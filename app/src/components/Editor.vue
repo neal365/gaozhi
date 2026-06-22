@@ -15,17 +15,8 @@ const emit = defineEmits<{
 }>()
 
 const editorRef = ref<HTMLDivElement | null>(null)
-const rows = ref<number[][]>([])
-const currentRow = ref(0)
-const currentCol = ref(0)
 
 const cellSize = computed(() => props.lineHeight)
-
-function initGrid() {
-  const cols = Math.floor(props.lineHeight * 16 / props.lineHeight)
-  const initRows = 50
-  rows.value = Array(initRows).fill(null).map(() => Array(cols).fill(''))
-}
 
 function handleInput(e: Event) {
   const target = e.target as HTMLDivElement
@@ -53,7 +44,6 @@ function insertNewLineWithIndent() {
   const selection = window.getSelection()
   if (!selection || !selection.rangeCount) return
   
-  const range = selection.getRangeAt(0)
   const editor = editorRef.value
   if (!editor) return
   
@@ -107,7 +97,6 @@ function handleBackspace(e: KeyboardEvent) {
       })
       
       if (lineIndex > 0) {
-        const prevLineLength = lines[lineIndex - 1]?.length || 0
         const newText = lines.slice(0, lineIndex - 1).join('\n') + lines[lineIndex - 1] + lines[lineIndex] + lines.slice(lineIndex + 1).join('\n')
         
         editor.innerText = newText
@@ -115,7 +104,7 @@ function handleBackspace(e: KeyboardEvent) {
         emit('save')
         
         nextTick(() => {
-          setCursorPosition(editor, cursorPos - 1 - lines[lineIndex - 1]?.length || 0)
+          setCursorPosition(editor, cursorPos - 1 - (lines[lineIndex - 1]?.length || 0))
         })
       }
     }
@@ -195,7 +184,6 @@ watch(() => props.modelValue, (newValue) => {
 })
 
 onMounted(() => {
-  initGrid()
   focusEditor()
 })
 
