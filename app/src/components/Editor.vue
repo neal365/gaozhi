@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, nextTick } from 'vue'
+import { ref, onMounted, watch, nextTick, computed } from 'vue'
 
 const props = defineProps<{
   modelValue: string
@@ -15,6 +15,17 @@ const emit = defineEmits<{
 }>()
 
 const editorRef = ref<HTMLDivElement | null>(null)
+const rows = ref<number[][]>([])
+const currentRow = ref(0)
+const currentCol = ref(0)
+
+const cellSize = computed(() => props.lineHeight)
+
+function initGrid() {
+  const cols = Math.floor(props.lineHeight * 16 / props.lineHeight)
+  const initRows = 50
+  rows.value = Array(initRows).fill(null).map(() => Array(cols).fill(''))
+}
 
 function handleInput(e: Event) {
   const target = e.target as HTMLDivElement
@@ -32,6 +43,10 @@ function handleKeydown(e: KeyboardEvent) {
     e.preventDefault()
     insertNewLineWithIndent()
   }
+  
+  if (e.key === 'Backspace') {
+    handleBackspace(e)
+  }
 }
 
 function insertNewLineWithIndent() {
@@ -42,64 +57,129 @@ function insertNewLineWithIndent() {
   const editor = editorRef.value
   if (!editor) return
   
-  // 获取当前行内容
-  const currentLine = getCurrentLineText()
+  const indent = '　　'
+  const text = editor.innerText || ''
+  const cursorPos = getCursorPosition(editor)
+  const lines = text.split('\n')
   
-  // 插入换行符和2个缩进空格
-  const indent = '　　' // 全角空格
-  const newLineNode = document.createTextNode('\n' + indent)
+  const currentLineIndex = lines.findIndex((_, i) => {
+    const lineLength = lines.slice(0, i + 1).reduce((acc, l) => acc + l.length + 1, 0)
+    return lineLength > cursorPos
+  })
   
-  if (range.startContainer.nodeType === Node.TEXT_NODE) {
-    const textNode = range.startContainer
-    const offset = range.startOffset
-    
-    // 在当前文本中插入换行和缩进
-    textNode.textContent = textNode.textContent?.substring(0, offset) + '\n' + indent + textNode.textContent?.substring(offset) || ''
-    
-    // 移动光标到新行缩进后面
-    range.setStart(textNode, offset + indent.length + 1)
-    range.collapse(true)
-    selection.removeAllRanges()
-    selection.addRange(range)
+  const lineStart = lines.slice(0, currentLineIndex).reduce((acc, l) => acc + l.length + 1, 0)
+  const lineEnd = lineStart + (lines[currentLineIndex]?.length || 0)
+  
+  let newText = ''
+  if (cursorPos <= lineStart) {
+    newText = text.slice(0, lineStart) + '\n' + indent + text.slice(lineStart)
+  } else if (cursorPos >= lineEnd) {
+    newText = text.slice(0, lineEnd) + '\n' + indent + text.slice(lineEnd)
   } else {
-    // 在编辑器中插入新节点
-    range.insertNode(newLineNode)
-    
-    // 移动光标到新行缩进后面
-    range.setStart(newLineNode, indent.length + 1)
-    range.collapse(true)
-    selection.removeAllRanges()
-    selection.addRange(range)
+    newText = text.slice(0, cursorPos) + '\n' + indent + text.slice(cursorPos)
   }
   
-  emit('update:modelValue', editor.innerText || '')
+  editor.innerText = newText
+  emit('update:modelValue', newText)
   emit('save')
+  
+  nextTick(() => {
+    const newCursorPos = cursorPos + 1 + indent.length
+    setCursorPosition(editor, newCursorPos)
+  })
 }
 
-function getCurrentLineText(): string {
+function handleBackspace(e: KeyboardEvent) {
+  const editor = editorRef.value
+  if (!editor) return
+  
+  const text = editor.innerText || ''
+  const cursorPos = getCursorPosition(editor)
+  
+  if (cursorPos > 0) {
+    const prevChar = text[cursorPos - 1]
+    if (prevChar === '\n') {
+      e.preventDefault()
+      const lines = text.split('\n')
+      const lineIndex = lines.findIndex((_, i) => {
+        const lineLength = lines.slice(0, i + 1).reduce((acc, l) => acc + l.length + 1, 0)
+        return lineLength > cursorPos
+      })
+      
+      if (lineIndex > 0) {
+        const prevLineLength = lines[lineIndex - 1]?.length || 0
+        const newText = lines.slice(0, lineIndex - 1).join('\n') + lines[lineIndex - 1] + lines[lineIndex] + lines.slice(lineIndex + 1).join('\n')
+        
+        editor.innerText = newText
+        emit('update:modelValue', newText)
+        emit('save')
+        
+        nextTick(() => {
+          setCursorPosition(editor, cursorPos - 1 - lines[lineIndex - 1]?.length || 0)
+        })
+      }
+    }
+  }
+}
+
+function getCursorPosition(element: HTMLElement): number {
   const selection = window.getSelection()
-  if (!selection || !selection.rangeCount) return ''
+  if (!selection || !selection.rangeCount) return 0
   
   const range = selection.getRangeAt(0)
-  const editor = editorRef.value
-  if (!editor) return ''
-  
-  // 获取光标前的所有文本直到换行符
   const preCaretRange = range.cloneRange()
-  preCaretRange.selectNodeContents(editor)
+  preCaretRange.selectNodeContents(element)
   preCaretRange.setEnd(range.endContainer, range.endOffset)
   
   const tempDiv = document.createElement('div')
   tempDiv.appendChild(preCaretRange.cloneContents())
-  const text = tempDiv.textContent || ''
-  
-  // 获取当前行的起始位置
-  const lines = text.split('\n')
-  return lines[lines.length - 1]
+  return tempDiv.textContent?.length || 0
 }
 
-function handleClick() {
-  editorRef.value?.focus()
+function setCursorPosition(element: HTMLElement, position: number) {
+  const selection = window.getSelection()
+  if (!selection) return
+  
+  const range = document.createRange()
+  range.selectNodeContents(element)
+  
+  let charCount = 0
+  let node: Node | null = element.firstChild
+  
+  while (node) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const textNode = node as Text
+      if (charCount + textNode.length >= position) {
+        range.setStart(textNode, position - charCount)
+        range.collapse(true)
+        selection.removeAllRanges()
+        selection.addRange(range)
+        return
+      }
+      charCount += textNode.length
+    }
+    node = node.nextSibling
+  }
+  
+  range.collapse(false)
+  selection.removeAllRanges()
+  selection.addRange(range)
+}
+
+function handleClick(e: MouseEvent) {
+  const editor = editorRef.value
+  if (!editor) return
+  
+  editor.focus()
+  
+  const selection = window.getSelection()
+  if (!selection) return
+  
+  const range = document.caretRangeFromPoint(e.clientX, e.clientY)
+  if (range) {
+    selection.removeAllRanges()
+    selection.addRange(range)
+  }
 }
 
 function focusEditor() {
@@ -115,6 +195,7 @@ watch(() => props.modelValue, (newValue) => {
 })
 
 onMounted(() => {
+  initGrid()
   focusEditor()
 })
 
@@ -135,9 +216,10 @@ defineExpose({ focusEditor })
         fontSize: `${fontSize}px`,
         lineHeight: `${lineHeight}px`,
         color: textColor,
-        minHeight: '100%'
+        minHeight: '100%',
+        letterSpacing: `${cellSize - fontSize * 0.8}px`
       }"
-      :data-placeholder="modelValue ? '' : '点击此处开始书写...'"
+      :data-placeholder="modelValue ? '' : '点击格子开始书写...'"
     />
   </div>
 </template>
@@ -147,6 +229,7 @@ defineExpose({ focusEditor })
   padding: 40px;
   min-height: calc(100vh - 120px);
   cursor: text;
+  letter-spacing: 20px;
 }
 
 .editor-content {
@@ -157,13 +240,15 @@ defineExpose({ focusEditor })
   cursor: text;
   font-size: 28px;
   line-height: 48px;
-  letter-spacing: 0;
+  letter-spacing: 20px;
   text-align: left;
   padding-left: 0;
   margin-left: 0;
   font-synthesis: none;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  writing-mode: horizontal-tb;
+  font-family: 'KaiTi', 'STKaiti', 'SimHei', sans-serif;
 }
 
 .editor-content:empty::before {
@@ -172,7 +257,7 @@ defineExpose({ focusEditor })
   pointer-events: none;
   font-size: 28px;
   line-height: 48px;
-  letter-spacing: 0;
+  letter-spacing: 20px;
 }
 
 .editor-content:focus {
@@ -181,6 +266,10 @@ defineExpose({ focusEditor })
 
 .editor-cursor {
   caret-color: currentColor;
-  display: inline;
+  caret-shape: bar;
+}
+
+.editor-content::selection {
+  background-color: rgba(139, 115, 85, 0.3);
 }
 </style>
