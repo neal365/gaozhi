@@ -25,7 +25,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'app/node_modules'
+          cache: 'npm'
+          cache-dependency-path: 'app/package-lock.json'
       - name: Install dependencies
         run: cd app && npm install
       - name: Build
