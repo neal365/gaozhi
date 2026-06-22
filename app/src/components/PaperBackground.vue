@@ -8,17 +8,35 @@ const props = defineProps<{
   paperWidth: number
 }>()
 
+// 田字格大小 = 4倍的行高（20×20 = 4个格子 × 5行高 = 20）
+const gridSize = computed(() => props.lineHeight * 4)
+
 const paperStyle = computed(() => {
-  const size = props.lineHeight
+  const size = gridSize.value
+  const smallSize = props.lineHeight
   const color = props.lineColor
   
   return {
     backgroundImage: `
-      /* 横向线条 */
-      linear-gradient(to bottom, ${color} 1px, transparent 1px)
+      /* 大格子边框（田字格） */
+      linear-gradient(${color}, ${color} 1px, transparent 1px, transparent 100%),
+      linear-gradient(90deg, ${color}, ${color} 1px, transparent 1px, transparent 100%),
+      /* 小格子分割线（米字格的对角线效果用中心十字线代替） */
+      linear-gradient(${color}, ${color} 1px, transparent 1px, transparent 100%),
+      linear-gradient(90deg, ${color}, ${color} 1px, transparent 1px, transparent 100%)
     `,
-    backgroundSize: `100% ${size}px`,
-    backgroundPosition: `0 ${size - 1}px`,
+    backgroundSize: `
+      ${size}px ${size}px,
+      ${size}px ${size}px,
+      ${smallSize}px ${smallSize}px,
+      ${smallSize}px ${smallSize}px
+    `,
+    backgroundPosition: `
+      -1px -1px,
+      -1px -1px,
+      -1px -1px,
+      -1px -1px
+    `,
     backgroundColor: props.bgColor
   }
 })
@@ -29,16 +47,7 @@ const paperStyle = computed(() => {
     class="paper-container"
     :style="paperStyle"
   >
-    <!-- 左侧红色边线装饰 -->
-    <div class="red-margin-line" />
-    
-    <!-- 纸张内容区域 -->
-    <div 
-      class="paper-content"
-      :style="{ width: `${paperWidth}px` }"
-    >
-      <slot />
-    </div>
+    <slot />
   </div>
 </template>
 
@@ -50,39 +59,6 @@ const paperStyle = computed(() => {
   right: 0;
   bottom: 0;
   min-height: 100vh;
-  background-repeat: repeat-x;
-  overflow-x: hidden;
-}
-
-.red-margin-line {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 2px;
-  height: 100%;
-  background: linear-gradient(
-    to bottom,
-    rgba(180, 80, 80, 0.6) 0%,
-    rgba(200, 100, 100, 0.5) 10%,
-    rgba(180, 80, 80, 0.6) 20%,
-    rgba(200, 100, 100, 0.5) 30%,
-    rgba(180, 80, 80, 0.6) 40%,
-    rgba(200, 100, 100, 0.5) 50%,
-    rgba(180, 80, 80, 0.6) 60%,
-    rgba(200, 100, 100, 0.5) 70%,
-    rgba(180, 80, 80, 0.6) 80%,
-    rgba(200, 100, 100, 0.5) 90%,
-    rgba(180, 80, 80, 0.6) 100%
-  );
-  pointer-events: none;
-  z-index: 1;
-}
-
-.paper-content {
-  position: relative;
-  margin: 0 auto;
-  min-height: 100vh;
-  padding-left: 20px;
-  box-sizing: border-box;
+  background-repeat: repeat;
 }
 </style>
