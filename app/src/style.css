@@ -1,0 +1,82 @@
+@import url('https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: 'KaiTi', 'STKaiti', serif;
+  line-height: 1.8;
+  font-weight: 400;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: #F5F0E6;
+}
+
+#app {
+  width: 100%;
+  min-height: 100vh;
+}
+
+.font-kai {
+  font-family: 'KaiTi', 'STKaiti', serif;
+}
+
+.font-xing {
+  font-family: 'Ma Shan Zheng', 'KaiTi', serif;
+}
+
+.font-li {
+  font-family: 'LiSu', 'STLiti', serif;
+}
+
+.font-song {
+  font-family: 'SimSun', 'STSong', serif;
+}
+
+.paper-texture {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  opacity: 0.03;
+  pointer-events: none;
+}
+
+.editor-cursor {
+  caret-color: #8B7355;
+  caret-shape: bar;
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+.editor-cursor::selection {
+  background-color: rgba(139, 115, 85, 0.2);
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #D4C4A8;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #A6927A;
+}
