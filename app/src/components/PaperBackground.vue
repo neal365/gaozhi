@@ -14,9 +14,10 @@ const gridStyle = computed(() => {
   
   return {
     backgroundImage: `
-      linear-gradient(to bottom, ${color} 1px, transparent 1px)
+      linear-gradient(to bottom, ${color} 1px, transparent 1px),
+      linear-gradient(to right, ${color} 1px, transparent 1px)
     `,
-    backgroundSize: `100% ${size}px`,
+    backgroundSize: `${size}px ${size}px`,
     backgroundPosition: '0 0',
     backgroundColor: props.bgColor
   }
@@ -35,7 +36,7 @@ const gridStyle = computed(() => {
 .paper-container {
   width: 100%;
   min-height: calc(100vh - 72px - 50px);
-  background-repeat: repeat-y;
+  background-repeat: repeat;
   padding: 0;
 }
 
