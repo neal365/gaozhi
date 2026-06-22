@@ -111,6 +111,7 @@ defineExpose({ focusEditor })
   min-height: calc(100vh - 120px);
   padding: 0;
   margin: 0;
+  padding-top: 72px;
 }
 
 .editor-content {
