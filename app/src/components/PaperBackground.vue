@@ -9,7 +9,8 @@ const props = defineProps<{
 }>()
 
 const svgContent = computed(() => {
-  return `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100%25' height='100%25'%3E%3Cdefs%3E%3Cpattern id='lined-paper' patternUnits='userSpaceOnUse' width='100%25' height='${props.lineHeight}'%3E%3Cline x1='0' y1='${props.lineHeight - 1}' x2='100%25' y2='${props.lineHeight - 1}' stroke='${encodeURIComponent(props.lineColor)}' stroke-width='1'/%3E%3C/pattern%3E%3C/defs%3E%3Crect width='100%25' height='100%25' fill='url(%23lined-paper)'/%3E%3C/svg%3E`
+  const cellSize = props.lineHeight
+  return `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='${cellSize}' height='${cellSize}'%3E%3Cdefs%3E%3Cpattern id='grid-paper' patternUnits='userSpaceOnUse' width='${cellSize}' height='${cellSize}'%3E%3Cpath d='M ${cellSize} 0 L 0 0 0 ${cellSize}' fill='none' stroke='${encodeURIComponent(props.lineColor)}' stroke-width='0.5'/%3E%3C/pattern%3E%3C/defs%3E%3Crect width='100%25' height='100%25' fill='url(%23grid-paper)'/%3E%3C/svg%3E`
 })
 </script>
 

@@ -14,10 +14,10 @@ const emit = defineEmits<{
   (e: 'save'): void
 }>()
 
-const editorRef = ref<HTMLElement | null>(null)
+const editorRef = ref<HTMLDivElement | null>(null)
 
 function handleInput(e: Event) {
-  const target = e.target as HTMLElement
+  const target = e.target as HTMLDivElement
   emit('update:modelValue', target.innerText || '')
   emit('save')
 }
@@ -27,6 +27,10 @@ function handleKeydown(e: KeyboardEvent) {
     e.preventDefault()
     emit('save')
   }
+}
+
+function handleClick() {
+  editorRef.value?.focus()
 }
 
 function focusEditor() {
@@ -49,7 +53,7 @@ defineExpose({ focusEditor })
 </script>
 
 <template>
-  <div class="editor-wrapper">
+  <div class="editor-wrapper" @click="handleClick">
     <div
       ref="editorRef"
       class="editor-content editor-cursor"
@@ -61,11 +65,11 @@ defineExpose({ focusEditor })
         fontFamily,
         fontSize: `${fontSize}px`,
         lineHeight: `${lineHeight}px`,
-        color: textColor
+        color: textColor,
+        minHeight: '100%'
       }"
-    >
-      {{ modelValue || '' }}
-    </div>
+      :data-placeholder="modelValue ? '' : '点击此处开始书写...'"
+    />
   </div>
 </template>
 
@@ -73,6 +77,7 @@ defineExpose({ focusEditor })
 .editor-wrapper {
   padding: 40px;
   min-height: calc(100vh - 120px);
+  cursor: text;
 }
 
 .editor-content {
@@ -80,6 +85,7 @@ defineExpose({ focusEditor })
   min-height: 100%;
   white-space: pre-wrap;
   word-wrap: break-word;
+  cursor: text;
 }
 
 .editor-content:empty::before {
@@ -90,5 +96,9 @@ defineExpose({ focusEditor })
 
 .editor-content:focus {
   outline: none;
+}
+
+.editor-cursor {
+  caret-color: currentColor;
 }
 </style>
