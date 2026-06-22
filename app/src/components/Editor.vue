@@ -27,6 +27,75 @@ function handleKeydown(e: KeyboardEvent) {
     e.preventDefault()
     emit('save')
   }
+  
+  if (e.key === 'Enter') {
+    e.preventDefault()
+    insertNewLineWithIndent()
+  }
+}
+
+function insertNewLineWithIndent() {
+  const selection = window.getSelection()
+  if (!selection || !selection.rangeCount) return
+  
+  const range = selection.getRangeAt(0)
+  const editor = editorRef.value
+  if (!editor) return
+  
+  // 获取当前行内容
+  const currentLine = getCurrentLineText()
+  
+  // 插入换行符和2个缩进空格
+  const indent = '　　' // 全角空格
+  const newLineNode = document.createTextNode('\n' + indent)
+  
+  if (range.startContainer.nodeType === Node.TEXT_NODE) {
+    const textNode = range.startContainer
+    const offset = range.startOffset
+    
+    // 在当前文本中插入换行和缩进
+    textNode.textContent = textNode.textContent?.substring(0, offset) + '\n' + indent + textNode.textContent?.substring(offset) || ''
+    
+    // 移动光标到新行缩进后面
+    range.setStart(textNode, offset + indent.length + 1)
+    range.collapse(true)
+    selection.removeAllRanges()
+    selection.addRange(range)
+  } else {
+    // 在编辑器中插入新节点
+    range.insertNode(newLineNode)
+    
+    // 移动光标到新行缩进后面
+    range.setStart(newLineNode, indent.length + 1)
+    range.collapse(true)
+    selection.removeAllRanges()
+    selection.addRange(range)
+  }
+  
+  emit('update:modelValue', editor.innerText || '')
+  emit('save')
+}
+
+function getCurrentLineText(): string {
+  const selection = window.getSelection()
+  if (!selection || !selection.rangeCount) return ''
+  
+  const range = selection.getRangeAt(0)
+  const editor = editorRef.value
+  if (!editor) return ''
+  
+  // 获取光标前的所有文本直到换行符
+  const preCaretRange = range.cloneRange()
+  preCaretRange.selectNodeContents(editor)
+  preCaretRange.setEnd(range.endContainer, range.endOffset)
+  
+  const tempDiv = document.createElement('div')
+  tempDiv.appendChild(preCaretRange.cloneContents())
+  const text = tempDiv.textContent || ''
+  
+  // 获取当前行的起始位置
+  const lines = text.split('\n')
+  return lines[lines.length - 1]
 }
 
 function handleClick() {
@@ -86,12 +155,24 @@ defineExpose({ focusEditor })
   white-space: pre-wrap;
   word-wrap: break-word;
   cursor: text;
+  font-size: 28px;
+  line-height: 48px;
+  letter-spacing: 0;
+  text-align: left;
+  padding-left: 0;
+  margin-left: 0;
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .editor-content:empty::before {
   content: attr(data-placeholder);
   color: #aaa;
   pointer-events: none;
+  font-size: 28px;
+  line-height: 48px;
+  letter-spacing: 0;
 }
 
 .editor-content:focus {
@@ -100,5 +181,6 @@ defineExpose({ focusEditor })
 
 .editor-cursor {
   caret-color: currentColor;
+  display: inline;
 }
 </style>

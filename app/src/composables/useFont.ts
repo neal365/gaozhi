@@ -10,7 +10,7 @@ const fonts: FontConfig[] = [
 ]
 
 const currentFontStyle = ref<FontStyle>('kai')
-const fontSize = ref(20)
+const fontSize = ref(28)
 
 export function useFont() {
   const fontConfig = computed(() => {
