@@ -8,24 +8,27 @@ const props = defineProps<{
   paperWidth: number
 }>()
 
-const svgContent = computed(() => {
-  const cellSize = props.lineHeight
-  return `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='${cellSize}' height='${cellSize}'%3E%3Cdefs%3E%3Cpattern id='grid-paper' patternUnits='userSpaceOnUse' width='${cellSize}' height='${cellSize}'%3E%3Cpath d='M ${cellSize} 0 L 0 0 0 ${cellSize}' fill='none' stroke='${encodeURIComponent(props.lineColor)}' stroke-width='0.5'/%3E%3C/pattern%3E%3C/defs%3E%3Crect width='100%25' height='100%25' fill='url(%23grid-paper)'/%3E%3C/svg%3E`
+const gridStyle = computed(() => {
+  const size = props.lineHeight
+  const color = props.lineColor
+  const gradient = `linear-gradient(to right, ${color} 1px, transparent 1px), linear-gradient(to bottom, ${color} 1px, transparent 1px)`
+  
+  return {
+    backgroundImage: gradient,
+    backgroundSize: `${size}px ${size}px`,
+    backgroundColor: props.bgColor
+  }
 })
 </script>
 
 <template>
   <div 
-    class="absolute inset-0 paper-container"
-    :style="{ backgroundColor: bgColor }"
+    class="paper-container"
+    :style="gridStyle"
   >
+    <div class="paper-texture" />
     <div 
-      class="absolute inset-0 paper-lines"
-      :style="{ backgroundImage: `url(${svgContent})` }"
-    />
-    <div class="absolute inset-0 paper-texture" />
-    <div 
-      class="relative mx-auto h-full overflow-hidden"
+      class="paper-content"
       :style="{ width: `${paperWidth}px`, maxWidth: '100%' }"
     >
       <slot />
@@ -35,10 +38,29 @@ const svgContent = computed(() => {
 
 <style scoped>
 .paper-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   min-height: 100vh;
+  background-repeat: repeat;
+  background-position: 0 0;
 }
 
-.paper-lines {
-  background-repeat: repeat-y;
+.paper-texture {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  opacity: 0.03;
+  pointer-events: none;
+}
+
+.paper-content {
+  position: relative;
+  margin: 0 auto;
+  min-height: 100vh;
 }
 </style>
