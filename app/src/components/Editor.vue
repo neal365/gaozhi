@@ -16,7 +16,9 @@ const emit = defineEmits<{
 
 const editorRef = ref<HTMLDivElement | null>(null)
 
-const cellSize = computed(() => props.lineHeight)
+const letterSpacing = computed(() => {
+  return props.lineHeight - props.fontSize
+})
 
 function handleInput(e: Event) {
   const target = e.target as HTMLDivElement
@@ -205,7 +207,9 @@ defineExpose({ focusEditor })
         lineHeight: `${lineHeight}px`,
         color: textColor,
         minHeight: '100%',
-        letterSpacing: `${cellSize - fontSize * 0.8}px`
+        letterSpacing: `${letterSpacing}px`,
+        textAlign: 'justify',
+        textIndent: '0'
       }"
       :data-placeholder="modelValue ? '' : '点击格子开始书写...'"
     />
@@ -217,7 +221,6 @@ defineExpose({ focusEditor })
   padding: 40px;
   min-height: calc(100vh - 120px);
   cursor: text;
-  letter-spacing: 20px;
 }
 
 .editor-content {
@@ -226,9 +229,6 @@ defineExpose({ focusEditor })
   white-space: pre-wrap;
   word-wrap: break-word;
   cursor: text;
-  font-size: 28px;
-  line-height: 48px;
-  letter-spacing: 20px;
   text-align: left;
   padding-left: 0;
   margin-left: 0;
@@ -243,9 +243,6 @@ defineExpose({ focusEditor })
   content: attr(data-placeholder);
   color: #aaa;
   pointer-events: none;
-  font-size: 28px;
-  line-height: 48px;
-  letter-spacing: 20px;
 }
 
 .editor-content:focus {
