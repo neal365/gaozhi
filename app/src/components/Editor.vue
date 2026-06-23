@@ -68,7 +68,21 @@ function handleCellInput(e: Event, row: number, col: number) {
     target.innerText = text
   }
   
-  cells.value[row][col].text = text
+  if (text && text !== cells.value[row][col].text) {
+    cells.value[row][col].text = text
+    
+    const nextCol = col + 1
+    if (nextCol < colsPerLine.value) {
+      activeCell.value = { row, col: nextCol }
+      focusCell(row, nextCol)
+    } else if (row + 1 < rowsPerPage.value) {
+      activeCell.value = { row: row + 1, col: 0 }
+      focusCell(row + 1, 0)
+    }
+  } else if (!text) {
+    cells.value[row][col].text = ''
+  }
+  
   updateContent()
 }
 
@@ -152,22 +166,13 @@ function handleCellKeydown(e: KeyboardEvent, row: number, col: number) {
     return
   }
   
-  if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
-    cells.value[row][col].text = e.key
-    const target = e.target as HTMLDivElement
-    target.innerText = e.key
-    
-    const nextCol = col + 1
-    if (nextCol < colsPerLine.value) {
-      activeCell.value = { row, col: nextCol }
-      focusCell(row, nextCol)
-    } else if (row + 1 < rowsPerPage.value) {
-      activeCell.value = { row: row + 1, col: 0 }
-      focusCell(row + 1, 0)
-    }
-    
-    updateContent()
+  if (e.key === 'Delete') {
     e.preventDefault()
+    cells.value[row][col].text = ''
+    const target = e.target as HTMLDivElement
+    target.innerText = ''
+    updateContent()
+    return
   }
 }
 
