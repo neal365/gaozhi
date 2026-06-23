@@ -61,15 +61,16 @@ function handleCellClick(row: number, col: number) {
 
 function handleCellInput(e: Event, row: number, col: number) {
   const target = e.target as HTMLDivElement
-  let text = target.innerText || ''
+  const oldText = cells.value[row][col].text
+  let newText = target.innerText || ''
   
-  if (text.length > 1) {
-    text = text.slice(-1)
-    target.innerText = text
+  if (newText.length > 1) {
+    newText = newText.slice(-1)
+    target.innerText = newText
   }
   
-  if (text && text !== cells.value[row][col].text) {
-    cells.value[row][col].text = text
+  if (newText && !oldText) {
+    cells.value[row][col].text = newText
     
     const nextCol = col + 1
     if (nextCol < colsPerLine.value) {
@@ -79,8 +80,10 @@ function handleCellInput(e: Event, row: number, col: number) {
       activeCell.value = { row: row + 1, col: 0 }
       focusCell(row + 1, 0)
     }
-  } else if (!text) {
+  } else if (!newText && oldText) {
     cells.value[row][col].text = ''
+  } else if (newText && newText !== oldText) {
+    cells.value[row][col].text = newText
   }
   
   updateContent()
