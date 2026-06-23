@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 
 const props = defineProps<{
   modelValue: string
@@ -14,224 +14,173 @@ const emit = defineEmits<{
   (e: 'save'): void
 }>()
 
-const colsPerLine = ref(20)
-const rowsPerPage = ref(20)
-const activeCell = ref<{ row: number; col: number } | null>(null)
+const textareaRef = ref<HTMLTextAreaElement | null>(null)
+
+const colsPerLine = 20
+const rowsPerPage = 20
 
 const gridStyle = computed(() => ({
   display: 'grid',
-  gridTemplateColumns: `repeat(${colsPerLine.value}, ${props.lineHeight}px)`,
-  gridTemplateRows: `repeat(${rowsPerPage.value}, ${props.lineHeight}px)`,
+  gridTemplateColumns: `repeat(${colsPerLine}, ${props.lineHeight}px)`,
+  gridTemplateRows: `repeat(${rowsPerPage}, ${props.lineHeight}px)`,
 }))
 
-function getCellIndex(row: number, col: number): number {
-  return row * colsPerLine.value + col
-}
+const textareaStyle = computed(() => ({
+  fontFamily: props.fontFamily,
+  fontSize: `${props.fontSize}px`,
+  lineHeight: `${props.lineHeight}px`,
+  color: 'transparent',
+  caretColor: props.textColor,
+  width: `${colsPerLine * props.lineHeight}px`,
+  height: `${rowsPerPage * props.lineHeight}px`,
+  letterSpacing: `${props.lineHeight - props.fontSize}px`,
+}))
 
 function getCellText(row: number, col: number): string {
-  const index = getCellIndex(row, col)
+  const index = row * colsPerLine + col
   return props.modelValue[index] || ''
 }
 
-function handleCellClick(row: number, col: number) {
-  activeCell.value = { row, col }
+function handleInput(e: Event) {
+  const target = e.target as HTMLTextAreaElement
+  emit('update:modelValue', target.value)
+  emit('save')
 }
 
-function handleCellInput(e: Event, row: number, col: number) {
-  const target = e.target as HTMLDivElement
-  let text = target.innerText || ''
-  
-  if (text.length > 1) {
-    text = text.slice(-1)
-    target.innerText = text
-  }
-  
-  const index = getCellIndex(row, col)
-  const currentText = getCellText(row, col)
-  
-  if (text !== currentText) {
-    const newValue = props.modelValue.slice(0, index) + text + props.modelValue.slice(index + 1)
-    emit('update:modelValue', newValue)
-    emit('save')
-    
-    if (text && !currentText) {
-      const nextCol = col + 1
-      if (nextCol < colsPerLine.value) {
-        activeCell.value = { row, col: nextCol }
-      } else if (row + 1 < rowsPerPage.value) {
-        activeCell.value = { row: row + 1, col: 0 }
-      }
-    }
-  }
-}
-
-function handleCellKeydown(e: KeyboardEvent, row: number, col: number) {
+function handleKeydown(e: KeyboardEvent) {
   if ((e.metaKey || e.ctrlKey) && e.key === 's') {
     e.preventDefault()
     emit('save')
     return
   }
-  
+
   if (e.key === 'Enter') {
     e.preventDefault()
-    const nextRow = row + 1
-    if (nextRow < rowsPerPage.value) {
-      activeCell.value = { row: nextRow, col: 2 }
-      const index = getCellIndex(nextRow, 2)
-      const newValue = props.modelValue.slice(0, index) + '  ' + props.modelValue.slice(index)
-      emit('update:modelValue', newValue)
-      emit('save')
-    }
-    return
-  }
-  
-  if (e.key === 'ArrowRight') {
-    e.preventDefault()
-    const nextCol = col + 1
-    if (nextCol < colsPerLine.value) {
-      activeCell.value = { row, col: nextCol }
-    }
-    return
-  }
-  
-  if (e.key === 'ArrowLeft') {
-    e.preventDefault()
-    const prevCol = col - 1
-    if (prevCol >= 0) {
-      activeCell.value = { row, col: prevCol }
-    }
-    return
-  }
-  
-  if (e.key === 'ArrowUp') {
-    e.preventDefault()
-    const prevRow = row - 1
-    if (prevRow >= 0) {
-      activeCell.value = { row: prevRow, col }
-    }
-    return
-  }
-  
-  if (e.key === 'ArrowDown') {
-    e.preventDefault()
-    const nextRow = row + 1
-    if (nextRow < rowsPerPage.value) {
-      activeCell.value = { row: nextRow, col }
-    }
-    return
-  }
-  
-  if (e.key === 'Backspace') {
-    e.preventDefault()
-    const index = getCellIndex(row, col)
-    const currentText = getCellText(row, col)
-    
-    if (!currentText) {
-      if (col > 0) {
-        const prevIndex = getCellIndex(row, col - 1)
-        const newValue = props.modelValue.slice(0, prevIndex) + '' + props.modelValue.slice(prevIndex + 1)
-        emit('update:modelValue', newValue)
-        emit('save')
-        activeCell.value = { row, col: col - 1 }
-      } else if (row > 0) {
-        const prevIndex = getCellIndex(row - 1, colsPerLine.value - 1)
-        const newValue = props.modelValue.slice(0, prevIndex) + '' + props.modelValue.slice(prevIndex + 1)
-        emit('update:modelValue', newValue)
-        emit('save')
-        activeCell.value = { row: row - 1, col: colsPerLine.value - 1 }
-      }
-    } else {
-      const newValue = props.modelValue.slice(0, index) + '' + props.modelValue.slice(index + 1)
-      emit('update:modelValue', newValue)
-      emit('save')
-    }
-    return
-  }
-  
-  if (e.key === 'Delete') {
-    e.preventDefault()
-    const index = getCellIndex(row, col)
-    const newValue = props.modelValue.slice(0, index) + '' + props.modelValue.slice(index + 1)
+    const target = e.target as HTMLTextAreaElement
+    const pos = target.selectionStart
+    const newValue = props.modelValue.slice(0, pos) + '  \n' + props.modelValue.slice(pos)
     emit('update:modelValue', newValue)
     emit('save')
+    nextTick(() => {
+      target.selectionStart = pos + 3
+      target.selectionEnd = pos + 3
+    })
     return
   }
 }
 
-function handlePaste(e: ClipboardEvent) {
-  e.preventDefault()
+function focusEditor() {
+  nextTick(() => {
+    textareaRef.value?.focus()
+  })
 }
+
+watch(() => props.modelValue, (newValue) => {
+  if (textareaRef.value && textareaRef.value.value !== newValue) {
+    const pos = textareaRef.value.selectionStart
+    textareaRef.value.value = newValue
+    textareaRef.value.selectionStart = pos
+    textareaRef.value.selectionEnd = pos
+  }
+})
+
+onMounted(() => {
+  focusEditor()
+})
+
+defineExpose({ focusEditor })
 </script>
 
 <template>
-  <div
-    class="editor-grid"
-    :style="gridStyle"
-  >
-    <template v-for="row in rowsPerPage" :key="row">
+  <div class="editor-wrapper">
+    <div class="grid-display" :style="gridStyle">
       <div
-        v-for="col in colsPerLine"
-        :key="`${row}-${col}`"
-        class="editor-cell"
-        contenteditable="true"
-        spellcheck="false"
-        :class="{ active: activeCell?.row === row - 1 && activeCell?.col === col - 1 }"
-        @click="handleCellClick(row - 1, col - 1)"
-        @input="(e) => handleCellInput(e, row - 1, col - 1)"
-        @keydown="(e) => handleCellKeydown(e, row - 1, col - 1)"
-        @paste="handlePaste"
-        :style="{
-          fontFamily,
-          fontSize: `${fontSize}px`,
-          lineHeight: `${lineHeight}px`,
-          color: textColor,
-          width: `${lineHeight}px`,
-          height: `${lineHeight}px`
-        }"
+        v-for="row in rowsPerPage"
+        :key="`row-${row}`"
+        class="grid-row"
       >
-        {{ getCellText(row - 1, col - 1) }}
+        <div
+          v-for="col in colsPerLine"
+          :key="`cell-${row}-${col}`"
+          class="grid-cell"
+          :style="{
+            fontFamily,
+            fontSize: `${fontSize}px`,
+            lineHeight: `${lineHeight}px`,
+            color: textColor,
+            width: `${lineHeight}px`,
+            height: `${lineHeight}px`
+          }"
+        >
+          {{ getCellText(row - 1, col - 1) }}
+        </div>
       </div>
-    </template>
+    </div>
+    <textarea
+      ref="textareaRef"
+      class="editor-textarea"
+      :style="textareaStyle"
+      :value="modelValue"
+      spellcheck="false"
+      @input="handleInput"
+      @keydown="handleKeydown"
+    />
   </div>
 </template>
 
 <style scoped>
-.editor-grid {
-  outline: none;
+.editor-wrapper {
+  position: relative;
+  width: fit-content;
+  margin: 0 auto;
 }
 
-.editor-cell {
-  outline: none;
+.grid-display {
+  position: relative;
+  z-index: 1;
+}
+
+.grid-row {
+  display: contents;
+}
+
+.grid-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
-  vertical-align: middle;
-  cursor: text;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-family: 'KaiTi', 'STKaiti', 'SimSun', 'SimHei', serif;
-  caret-color: currentColor;
   overflow: hidden;
   white-space: pre;
+  pointer-events: none;
 }
 
-.editor-cell:hover {
-  background-color: rgba(0, 0, 0, 0.03);
-}
-
-.editor-cell.active {
-  background-color: rgba(180, 140, 100, 0.15);
-}
-
-.editor-cell:focus {
+.editor-textarea {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  background: transparent;
+  border: none;
   outline: none;
+  resize: none;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-family: 'KaiTi', 'STKaiti', 'SimSun', 'SimHei', serif;
 }
 
-.editor-cell::selection,
-.editor-cell::-moz-selection {
+.editor-textarea::selection {
   background-color: rgba(180, 140, 100, 0.3);
 }
 
-.editor-cell:empty::before {
-  content: '';
-  visibility: hidden;
+.editor-textarea::-moz-selection {
+  background-color: rgba(180, 140, 100, 0.3);
 }
 </style>
