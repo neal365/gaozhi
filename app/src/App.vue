@@ -17,7 +17,7 @@ const showToolbar = ref(true)
 const showStatusBar = ref(true)
 
 const lineHeight = 48
-const paperWidth = 800
+const paperWidth = 960
 
 function toggleFullscreen() {
   if (!document.fullscreenElement) {
