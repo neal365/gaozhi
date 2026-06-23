@@ -15,20 +15,64 @@ const emit = defineEmits<{
 }>()
 
 const editorRef = ref<HTMLDivElement | null>(null)
+const cells = ref<{ text: string; row: number; col: number; ref: HTMLDivElement | null }[][]>([])
+const colsPerLine = ref(20)
+const rowsPerPage = ref(20)
+const activeCell = ref<{ row: number; col: number } | null>(null)
 
-const letterSpacing = computed(() => {
-  return `${props.lineHeight - props.fontSize}px`
-})
+const gridStyle = computed(() => ({
+  display: 'grid',
+  gridTemplateColumns: `repeat(${colsPerLine.value}, ${props.lineHeight}px)`,
+  gridTemplateRows: `repeat(${rowsPerPage.value}, ${props.lineHeight}px)`,
+}))
 
-function handleInput(e: Event) {
-  const target = e.target as HTMLDivElement
-  let text = target.innerText || ''
-  text = text.replace(/\s+/g, ' ')
-  emit('update:modelValue', text)
-  emit('save')
+function initGrid() {
+  const newCells: typeof cells.value = []
+  for (let row = 0; row < rowsPerPage.value; row++) {
+    newCells[row] = []
+    for (let col = 0; col < colsPerLine.value; col++) {
+      const pos = row * colsPerLine.value + col
+      newCells[row][col] = {
+        text: props.modelValue[pos] || '',
+        row,
+        col,
+        ref: null
+      }
+    }
+  }
+  cells.value = newCells
 }
 
-function handleKeydown(e: KeyboardEvent) {
+function handleCellClick(row: number, col: number) {
+  activeCell.value = { row, col }
+  const cell = cells.value[row]?.[col]
+  if (cell?.ref) {
+    cell.ref.focus()
+    nextTick(() => {
+      const range = document.createRange()
+      range.selectNodeContents(cell.ref!)
+      range.collapse(false)
+      const selection = window.getSelection()
+      selection?.removeAllRanges()
+      selection?.addRange(range)
+    })
+  }
+}
+
+function handleCellInput(e: Event, row: number, col: number) {
+  const target = e.target as HTMLDivElement
+  let text = target.innerText || ''
+  
+  if (text.length > 1) {
+    text = text.slice(-1)
+    target.innerText = text
+  }
+  
+  cells.value[row][col].text = text
+  updateContent()
+}
+
+function handleCellKeydown(e: KeyboardEvent, row: number, col: number) {
   if ((e.metaKey || e.ctrlKey) && e.key === 's') {
     e.preventDefault()
     emit('save')
@@ -37,234 +81,209 @@ function handleKeydown(e: KeyboardEvent) {
   
   if (e.key === 'Enter') {
     e.preventDefault()
-    insertNewLineWithIndent()
+    const nextRow = row + 1
+    if (nextRow < rowsPerPage.value) {
+      activeCell.value = { row: nextRow, col: 2 }
+      focusCell(nextRow, 2)
+      cells.value[nextRow][2].text = ''
+      updateContent()
+    }
+    return
+  }
+  
+  if (e.key === 'ArrowRight') {
+    e.preventDefault()
+    const nextCol = col + 1
+    if (nextCol < colsPerLine.value) {
+      activeCell.value = { row, col: nextCol }
+      focusCell(row, nextCol)
+    }
+    return
+  }
+  
+  if (e.key === 'ArrowLeft') {
+    e.preventDefault()
+    const prevCol = col - 1
+    if (prevCol >= 0) {
+      activeCell.value = { row, col: prevCol }
+      focusCell(row, prevCol)
+    }
+    return
+  }
+  
+  if (e.key === 'ArrowUp') {
+    e.preventDefault()
+    const prevRow = row - 1
+    if (prevRow >= 0) {
+      activeCell.value = { row: prevRow, col }
+      focusCell(prevRow, col)
+    }
+    return
+  }
+  
+  if (e.key === 'ArrowDown') {
+    e.preventDefault()
+    const nextRow = row + 1
+    if (nextRow < rowsPerPage.value) {
+      activeCell.value = { row: nextRow, col }
+      focusCell(nextRow, col)
+    }
+    return
+  }
+  
+  if (e.key === 'Backspace') {
+    e.preventDefault()
+    if (!cells.value[row][col].text) {
+      if (col > 0) {
+        cells.value[row][col - 1].text = ''
+        activeCell.value = { row, col: col - 1 }
+        focusCell(row, col - 1)
+      } else if (row > 0) {
+        cells.value[row - 1][colsPerLine.value - 1].text = ''
+        activeCell.value = { row: row - 1, col: colsPerLine.value - 1 }
+        focusCell(row - 1, colsPerLine.value - 1)
+      }
+    } else {
+      cells.value[row][col].text = ''
+      const target = e.target as HTMLDivElement
+      target.innerText = ''
+    }
+    updateContent()
     return
   }
   
   if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
-    const selection = window.getSelection()
-    if (selection && selection.rangeCount > 0) {
-      const range = selection.getRangeAt(0)
-      const text = range.startContainer.textContent || ''
-      const pos = range.startOffset
-      
-      if (text[pos] && !text[pos].match(/\s/)) {
-        e.preventDefault()
-      }
+    cells.value[row][col].text = e.key
+    const target = e.target as HTMLDivElement
+    target.innerText = e.key
+    
+    const nextCol = col + 1
+    if (nextCol < colsPerLine.value) {
+      activeCell.value = { row, col: nextCol }
+      focusCell(row, nextCol)
+    } else if (row + 1 < rowsPerPage.value) {
+      activeCell.value = { row: row + 1, col: 0 }
+      focusCell(row + 1, 0)
     }
+    
+    updateContent()
+    e.preventDefault()
   }
 }
 
-function insertNewLineWithIndent() {
-  const selection = window.getSelection()
-  if (!selection || selection.rangeCount === 0) return
-  
-  const range = selection.getRangeAt(0)
-  const editor = editorRef.value
-  if (!editor) return
-  
-  const text = editor.innerText || ''
-  const pos = getCaretPosition()
-  
-  const newText = text.substring(0, pos) + '\n  ' + text.substring(pos)
-  editor.innerText = newText
-  emit('update:modelValue', newText)
+function focusCell(row: number, col: number) {
+  nextTick(() => {
+    const cell = cells.value[row]?.[col]
+    if (cell?.ref) {
+      cell.ref.focus()
+      const range = document.createRange()
+      range.selectNodeContents(cell.ref!)
+      range.collapse(false)
+      const selection = window.getSelection()
+      selection?.removeAllRanges()
+      selection?.addRange(range)
+    }
+  })
+}
+
+function updateContent() {
+  const text = cells.value.flat().map(cell => cell.text).join('')
+  emit('update:modelValue', text)
   emit('save')
-  
-  nextTick(() => {
-    setCaretPosition(pos + 3)
-  })
-}
-
-function getCaretPosition(): number {
-  const selection = window.getSelection()
-  if (!selection || selection.rangeCount === 0) return 0
-  
-  const range = selection.getRangeAt(0)
-  const container = range.startContainer
-  
-  if (container.nodeType === Node.TEXT_NODE) {
-    return range.startOffset
-  }
-  
-  let count = 0
-  const treeWalker = document.createTreeWalker(
-    editorRef.value!,
-    NodeFilter.SHOW_TEXT,
-    null,
-    false
-  )
-  
-  while (treeWalker.nextNode()) {
-    const node = treeWalker.currentNode as Text
-    if (node === container) {
-      count += range.startOffset
-      break
-    }
-    count += node.length
-  }
-  
-  return count
-}
-
-function setCaretPosition(pos: number) {
-  const editor = editorRef.value
-  if (!editor) return
-  
-  const treeWalker = document.createTreeWalker(
-    editor,
-    NodeFilter.SHOW_TEXT,
-    null,
-    false
-  )
-  
-  let currentPos = 0
-  let found = false
-  
-  while (treeWalker.nextNode()) {
-    const node = treeWalker.currentNode as Text
-    const endPos = currentPos + node.length
-    
-    if (pos <= endPos) {
-      const range = document.createRange()
-      range.setStart(node, pos - currentPos)
-      range.collapse(true)
-      
-      const selection = window.getSelection()
-      selection?.removeAllRanges()
-      selection?.addRange(range)
-      found = true
-      break
-    }
-    
-    currentPos = endPos
-  }
-  
-  if (!found && editor.childNodes.length > 0) {
-    const lastChild = editor.childNodes[editor.childNodes.length - 1]
-    if (lastChild.nodeType === Node.TEXT_NODE) {
-      const range = document.createRange()
-      range.setStart(lastChild, (lastChild as Text).length)
-      range.collapse(true)
-      
-      const selection = window.getSelection()
-      selection?.removeAllRanges()
-      selection?.addRange(range)
-    }
-  }
-  
-  editor.focus()
-}
-
-function handleClick(e: MouseEvent) {
-  const editor = editorRef.value
-  if (!editor) return
-  editor.focus()
-  
-  nextTick(() => {
-    const selection = window.getSelection()
-    if (!selection) return
-    
-    const range = document.caretRangeFromPoint?.(e.clientX, e.clientY)
-    if (range) {
-      const rect = range.getBoundingClientRect()
-      const cellSize = props.lineHeight
-      
-      const editorRect = editor.getBoundingClientRect()
-      const x = rect.left - editorRect.left
-      const y = rect.top - editorRect.top
-      
-      const col = Math.round(x / cellSize)
-      const row = Math.round(y / cellSize)
-      
-      const pos = row * getColsPerLine() + col
-      const textLength = editor.innerText.length
-      const actualPos = Math.min(pos, textLength)
-      
-      setCaretPosition(actualPos)
-    }
-  })
-}
-
-function getColsPerLine(): number {
-  const editor = editorRef.value
-  if (!editor) return 20
-  
-  const width = editor.offsetWidth
-  return Math.floor(width / props.lineHeight)
-}
-
-function focusEditor() {
-  nextTick(() => {
-    editorRef.value?.focus()
-  })
 }
 
 watch(() => props.modelValue, (newValue) => {
-  if (editorRef.value && editorRef.value.innerText !== newValue) {
-    editorRef.value.innerText = newValue
+  for (let row = 0; row < rowsPerPage.value; row++) {
+    for (let col = 0; col < colsPerLine.value; col++) {
+      const pos = row * colsPerLine.value + col
+      cells.value[row]?.[col] && (cells.value[row][col].text = newValue[pos] || '')
+    }
   }
 }, { immediate: true })
 
 onMounted(() => {
-  if (props.modelValue) {
-    editorRef.value!.innerText = props.modelValue
-  }
-  focusEditor()
+  initGrid()
 })
 
-defineExpose({ focusEditor })
+defineExpose({ focusCell })
 </script>
 
 <template>
   <div
     ref="editorRef"
-    class="editor-content"
-    contenteditable="true"
-    spellcheck="false"
-    @click="handleClick"
-    @input="handleInput"
-    @keydown="handleKeydown"
-    :style="{
-      fontFamily,
-      fontSize: `${fontSize}px`,
-      lineHeight: `${lineHeight}px`,
-      color: textColor,
-      letterSpacing
-    }"
-    :data-placeholder="modelValue ? '' : '点击开始书写...'"
-  />
+    class="editor-grid"
+    :style="gridStyle"
+  >
+    <div
+      v-for="row in rowsPerPage"
+      :key="row"
+      class="editor-row"
+    >
+      <div
+        v-for="col in colsPerLine"
+        :key="col"
+        class="editor-cell"
+        contenteditable="true"
+        spellcheck="false"
+        :class="{ active: activeCell?.row === row - 1 && activeCell?.col === col - 1 }"
+        @click="handleCellClick(row - 1, col - 1)"
+        @input="(e) => handleCellInput(e, row - 1, col - 1)"
+        @keydown="(e) => handleCellKeydown(e, row - 1, col - 1)"
+        :style="{
+          fontFamily,
+          fontSize: `${fontSize}px`,
+          lineHeight: `${lineHeight}px`,
+          color: textColor,
+          width: `${lineHeight}px`,
+          height: `${lineHeight}px`
+        }"
+      >
+        {{ cells[row - 1]?.[col - 1]?.text }}
+      </div>
+    </div>
+  </div>
 </template>
 
 <style scoped>
-.editor-content {
+.editor-grid {
   outline: none;
-  min-height: 100%;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  word-break: break-word;
+}
+
+.editor-row {
+  display: contents;
+}
+
+.editor-cell {
+  outline: none;
+  text-align: center;
+  vertical-align: middle;
+  cursor: text;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-family: 'KaiTi', 'STKaiti', 'SimSun', 'SimHei', serif;
-  padding: 0;
-  margin: 0;
   caret-color: currentColor;
-  text-align: center;
-  letter-spacing: 0;
+  overflow: hidden;
 }
 
-.editor-content:empty::before {
-  content: attr(data-placeholder);
-  color: rgba(0, 0, 0, 0.2);
-  pointer-events: none;
+.editor-cell:hover {
+  background-color: rgba(0, 0, 0, 0.05);
 }
 
-.editor-content:focus {
+.editor-cell.active {
+  background-color: rgba(180, 140, 100, 0.2);
+}
+
+.editor-cell:focus {
   outline: none;
 }
 
-.editor-content ::selection,
-.editor-content::-moz-selection {
+.editor-cell::selection,
+.editor-cell::-moz-selection {
   background-color: rgba(180, 140, 100, 0.3);
+}
+
+.editor-cell:empty::before {
+  content: '';
+  visibility: hidden;
 }
 </style>
