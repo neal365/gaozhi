@@ -99,6 +99,8 @@ defineExpose({ focusEditor })
   padding: 0;
   margin: 0;
   caret-color: currentColor;
+  text-align: center;
+  letter-spacing: 0;
 }
 
 .editor-content:empty::before {
